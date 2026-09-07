@@ -1,0 +1,241 @@
+package com.jinman.chahao
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.jinman.chahao.data.Comic
+import com.jinman.chahao.data.ExtractedId
+import com.jinman.chahao.data.FavoriteComic
+import com.jinman.chahao.data.FavoritesStore
+import com.jinman.chahao.data.JmApi
+import com.jinman.chahao.data.ParseIds
+import com.jinman.chahao.data.SessionId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+data class UiState(
+    val draft: String = "",
+    val extracted: List<ExtractedId> = emptyList(),
+    val session: List<SessionId> = emptyList(),
+    val cache: Map<String, Comic> = emptyMap(),
+    val searching: Boolean = false,
+    val error: String? = null,
+    val acceptedClipboard: String = "",
+    val pendingClipboard: String? = null,
+    val picker: List<ExtractedId> = emptyList(),
+    val favorites: Map<String, FavoriteComic> = emptyMap(),
+    val favTab: String = "pending",
+    val selecting: Boolean = false,
+    val selected: Set<String> = emptySet(),
+    val toast: String? = null,
+)
+
+sealed class SearchNav {
+    data class Detail(val id: String) : SearchNav()
+    data object Picker : SearchNav()
+    data class Fail(val message: String) : SearchNav()
+}
+
+class ScoutViewModel(app: Application) : AndroidViewModel(app) {
+    private val store = FavoritesStore(app)
+    private val _state = MutableStateFlow(UiState(favorites = store.load()))
+    val state: StateFlow<UiState> = _state
+
+    fun setDraft(text: String) {
+        _state.update {
+            it.copy(
+                draft = text,
+                extracted = ParseIds.extractIds(text),
+                error = null,
+                acceptedClipboard = text,
+            )
+        }
+    }
+
+    fun ingestClipboard(text: String) {
+        val next = text.trimEnd()
+        if (next.isBlank()) return
+        val s = _state.value
+        if (next == s.acceptedClipboard || next == s.draft) return
+        if (s.acceptedClipboard.isBlank() && s.draft.isBlank()) {
+            _state.update {
+                it.copy(
+                    draft = next,
+                    extracted = ParseIds.extractIds(next),
+                    acceptedClipboard = next,
+                    pendingClipboard = null,
+                )
+            }
+        } else {
+            _state.update { it.copy(pendingClipboard = next) }
+        }
+    }
+
+    fun dismissPending() = _state.update { it.copy(pendingClipboard = null) }
+
+    fun dismissToast() = _state.update { it.copy(toast = null) }
+
+    fun closePicker() = _state.update { it.copy(picker = emptyList()) }
+
+    suspend fun searchDraft(): SearchNav = searchIds(_state.value.extracted)
+
+    suspend fun searchPending(): SearchNav {
+        val pending = _state.value.pendingClipboard ?: return SearchNav.Fail("没有新内容")
+        val ids = ParseIds.extractIds(pending)
+        _state.update {
+            it.copy(
+                draft = pending,
+                extracted = ids,
+                acceptedClipboard = pending,
+                pendingClipboard = null,
+            )
+        }
+        return searchIds(ids)
+    }
+
+    suspend fun searchOne(id: String): SearchNav {
+        val cached = _state.value.cache[id]
+        if (cached?.found == true) {
+            markSearched(id)
+            return SearchNav.Detail(id)
+        }
+        return lookupAndGo(id)
+    }
+
+    private suspend fun searchIds(ids: List<ExtractedId>): SearchNav {
+        if (ids.isEmpty()) return SearchNav.Fail("没有识别到车号")
+        beginSession(ids)
+        if (ids.size > 1) {
+            _state.update { it.copy(picker = ids) }
+            return SearchNav.Picker
+        }
+        return lookupAndGo(ids.first().id)
+    }
+
+    private suspend fun lookupAndGo(id: String): SearchNav {
+        _state.update { it.copy(searching = true, error = null) }
+        val comic = withContext(Dispatchers.IO) { JmApi.lookup(id) }
+        _state.update { s ->
+            s.copy(
+                searching = false,
+                cache = s.cache + (id to comic),
+                error = if (comic.found) null else (comic.error ?: "没有这部"),
+            )
+        }
+        if (!comic.found) return SearchNav.Fail(comic.error ?: "没有这部")
+        markSearched(id)
+        return SearchNav.Detail(id)
+    }
+
+    private fun beginSession(ids: List<ExtractedId>) {
+        _state.update { s ->
+            s.copy(
+                session = ids.map {
+                    SessionId(it.id, it.method, it.snippet, s.cache[it.id]?.found == true)
+                },
+            )
+        }
+    }
+
+    private fun markSearched(id: String) {
+        _state.update { s ->
+            s.copy(session = s.session.map { if (it.id == id) it.copy(searched = true) else it })
+        }
+    }
+
+    fun toggleFavorite(comic: Comic) {
+        if (!comic.found) return
+        _state.update { s ->
+            val next = s.favorites.toMutableMap()
+            if (next.containsKey(comic.id)) next.remove(comic.id)
+            else next[comic.id] = FavoriteComic(comic, System.currentTimeMillis(), false)
+            store.save(next)
+            s.copy(favorites = next, toast = if (next.containsKey(comic.id)) "已加入收藏夹" else "已取消收藏")
+        }
+    }
+
+    fun setFavTab(tab: String) {
+        _state.update { it.copy(favTab = tab, selecting = false, selected = emptySet()) }
+    }
+
+    fun enterSelect(id: String) {
+        _state.update { it.copy(selecting = true, selected = it.selected + id) }
+    }
+
+    fun toggleSelect(id: String) {
+        _state.update {
+            val sel = if (id in it.selected) it.selected - id else it.selected + id
+            it.copy(selected = sel)
+        }
+    }
+
+    fun selectAll(ids: List<String>) {
+        _state.update { it.copy(selecting = true, selected = ids.toSet()) }
+    }
+
+    fun exitSelect() = _state.update { it.copy(selecting = false, selected = emptySet()) }
+
+    fun deleteSelected() {
+        _state.update { s ->
+            val next = s.favorites.filterKeys { it !in s.selected }
+            store.save(next)
+            s.copy(favorites = next, selected = emptySet(), selecting = false, toast = "已删除")
+        }
+    }
+
+    fun markExported(ids: Collection<String>) {
+        val now = System.currentTimeMillis()
+        _state.update { s ->
+            val next = s.favorites.mapValues { (id, fav) ->
+                if (id in ids) fav.copy(exported = true, exportedAt = now) else fav
+            }
+            store.save(next)
+            s.copy(favorites = next, selected = emptySet(), selecting = false, toast = "已复制 ${ids.size} 个车号")
+        }
+    }
+
+    fun markUnexported(ids: Collection<String>) {
+        _state.update { s ->
+            val next = s.favorites.mapValues { (id, fav) ->
+                if (id in ids) fav.copy(exported = false, exportedAt = null) else fav
+            }
+            store.save(next)
+            s.copy(
+                favorites = next,
+                selected = emptySet(),
+                selecting = false,
+                toast = "已撤回为未导出",
+            )
+        }
+    }
+
+    fun backupJson(): String = store.exportJson(_state.value.favorites)
+
+    fun importJson(text: String) {
+        viewModelScope.launch {
+            try {
+                val incoming = store.parseImport(text)
+                _state.update { s ->
+                    val next = s.favorites.toMutableMap()
+                    var added = 0
+                    var kept = 0
+                    for (item in incoming) {
+                        if (next.containsKey(item.comic.id)) kept++
+                        else {
+                            next[item.comic.id] = item
+                            added++
+                        }
+                    }
+                    store.save(next)
+                    s.copy(favorites = next, toast = "导入完成，新增 $added，保留已有 $kept")
+                }
+            } catch (_: Exception) {
+                _state.update { it.copy(toast = "无法读取这个收藏文件") }
+            }
+        }
+    }
+}

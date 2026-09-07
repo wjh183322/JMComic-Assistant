@@ -1,0 +1,630 @@
+package com.jinman.chahao.ui
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.jinman.chahao.ScoutViewModel
+import com.jinman.chahao.SearchNav
+import com.jinman.chahao.UiState
+import com.jinman.chahao.data.Comic
+import com.jinman.chahao.data.methodLabel
+import kotlinx.coroutines.launch
+
+private val ColorLine = Color(0xFFD8D2C8)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun App(vm: ScoutViewModel, clipboardTick: Int) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val nav = rememberNavController()
+    val snack = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+
+    LaunchedEffect(clipboardTick) {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val text = cm.primaryClip?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
+        if (text.isNotBlank()) vm.ingestClipboard(text)
+    }
+    LaunchedEffect(state.toast) {
+        val t = state.toast ?: return@LaunchedEffect
+        snack.showSnackbar(t)
+        vm.dismissToast()
+    }
+
+    fun handle(navResult: SearchNav) {
+        when (navResult) {
+            is SearchNav.Detail -> {
+                nav.navigate("session") { launchSingleTop = true }
+                nav.navigate("detail/${navResult.id}")
+            }
+            SearchNav.Picker -> nav.navigate("session") { launchSingleTop = true }
+            is SearchNav.Fail -> scope.launch { snack.showSnackbar(navResult.message) }
+        }
+    }
+
+    val route = nav.currentBackStackEntryAsState().value?.destination?.route
+    val showBar = route in setOf("home", "session", "favorites")
+
+    Scaffold(
+        containerColor = Paper,
+        snackbarHost = { SnackbarHost(snack) },
+        bottomBar = {
+            if (showBar) {
+                NavigationBar(containerColor = Paper, tonalElevation = 0.dp) {
+                    NavigationBarItem(
+                        selected = route == "home" || route == "session",
+                        onClick = {
+                            nav.navigate(if (state.session.isNotEmpty()) "session" else "home") {
+                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        label = { Text("查号") },
+                        colors = navColors(),
+                    )
+                    NavigationBarItem(
+                        selected = route == "favorites",
+                        onClick = {
+                            nav.navigate("favorites") {
+                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Bookmark, contentDescription = null) },
+                        label = { Text("收藏") },
+                        colors = navColors(),
+                    )
+                }
+            }
+        },
+    ) { pad ->
+        Box(Modifier.padding(pad).fillMaxSize()) {
+            NavHost(nav, startDestination = "home") {
+                composable("home") {
+                    HomeScreen(
+                        state = state,
+                        vm = vm,
+                        onSearch = { scope.launch { handle(vm.searchDraft()) } },
+                        onOpenSession = { nav.navigate("session") },
+                    )
+                }
+                composable("session") {
+                    SessionScreen(state, nav) { id ->
+                        scope.launch { handle(vm.searchOne(id)) }
+                    }
+                }
+                composable("detail/{id}") { entry ->
+                    val id = entry.arguments?.getString("id").orEmpty()
+                    val comic = state.cache[id] ?: state.favorites[id]?.comic
+                    if (comic == null) {
+                        LaunchedEffect(id) { handle(vm.searchOne(id)) }
+                    } else {
+                        DetailScreen(comic, state.favorites.containsKey(id), vm) { nav.popBackStack() }
+                    }
+                }
+                composable("favorites") { FavoritesScreen(state, vm, nav) }
+            }
+            if (state.pendingClipboard != null) {
+                PendingBar(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    onSearch = { scope.launch { handle(vm.searchPending()) } },
+                    onDismiss = vm::dismissPending,
+                )
+            }
+        }
+    }
+
+    if (state.picker.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = vm::closePicker,
+            title = { Text("选择一个车号") },
+            text = {
+                Column {
+                    Text("这段里有多个完整车号，选一个进行搜索。", color = Muted, fontSize = 14.sp)
+                    Spacer(Modifier.height(12.dp))
+                    state.picker.forEach { item ->
+                        TextButton(
+                            onClick = {
+                                vm.closePicker()
+                                scope.launch { handle(vm.searchOne(item.id)) }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(item.id, fontFamily = FontFamily.Monospace, color = Ink)
+                            Spacer(Modifier.weight(1f))
+                            Text(methodLabel(item.method), color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+        )
+    }
+}
+
+@Composable
+private fun navColors() = NavigationBarItemDefaults.colors(
+    selectedIconColor = Accent,
+    selectedTextColor = Accent,
+    indicatorColor = Surface2,
+    unselectedIconColor = Subtle,
+    unselectedTextColor = Subtle,
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HomeScreen(
+    state: UiState,
+    vm: ScoutViewModel,
+    onSearch: () -> Unit,
+    onOpenSession: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text("禁漫查号", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Ink)
+        Spacer(Modifier.height(16.dp))
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Surface)
+                .padding(16.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("原文", fontWeight = FontWeight.Medium)
+                TextButton(onClick = {
+                    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val text = cm.primaryClip?.takeIf { it.itemCount > 0 }
+                        ?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
+                    if (text.isBlank()) vm.setDraft(state.draft)
+                    else vm.setDraft(text)
+                }) { Text("读取剪贴板") }
+            }
+            OutlinedTextField(
+                value = state.draft,
+                onValueChange = vm::setDraft,
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                placeholder = { Text("粘贴抖音评论或车号。支持纯数字、暗号拼接。") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Accent,
+                    unfocusedContainerColor = Surface2,
+                    focusedContainerColor = Surface2,
+                ),
+            )
+            if (state.extracted.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("识别到的车号", color = Subtle, fontSize = 12.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.extracted.forEach {
+                        Text(
+                            "${it.id}  ${methodLabel(it.method)}",
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Accent.copy(alpha = 0.1f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = Accent,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                }
+            } else if (state.draft.isNotBlank()) {
+                Text("未能识别车号", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = onSearch,
+                enabled = !state.searching && state.extracted.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = AccentFg),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                if (state.searching) {
+                    CircularProgressIndicator(Modifier.size(18.dp), color = AccentFg, strokeWidth = 2.dp)
+                } else {
+                    Text("搜索")
+                }
+            }
+        }
+        if (state.session.isNotEmpty()) {
+            TextButton(onClick = onOpenSession) {
+                Text("查看本次识别 · ${state.session.size} 个车号", color = Accent)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        val samples = listOf(
+            "纯数字" to "1467240",
+            "抖音评论" to "@三角洲上瘾《不出货版》: 1464253",
+            "阿拉伯暗号" to "146局游戏81个大红51小金",
+            "中文暗号" to "回来刷了会动漫资讯，十四小时看了六万七千九百四十六条动漫信息",
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            samples.forEach { (label, text) ->
+                TextButton(onClick = { vm.setDraft(text) }) {
+                    Text(label, color = Muted, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionScreen(
+    state: UiState,
+    nav: NavHostController,
+    onOpen: (String) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("本次识别", fontWeight = FontWeight.Medium)
+                Text("只显示车号，已查过的会标记", color = Subtle, fontSize = 12.sp)
+            }
+            TextButton(onClick = { nav.navigate("home") }) { Text("改原文") }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (state.session.isEmpty()) {
+            Text("还没有识别记录", color = Muted)
+        } else {
+            Column(
+                Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Surface),
+            ) {
+                state.session.forEachIndexed { i, item ->
+                    if (i > 0) HorizontalDivider(color = ColorLine)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpen(item.id) }
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(item.id, fontFamily = FontFamily.Monospace, fontSize = 16.sp)
+                        Text(
+                            if (item.searched) "已查" else "未查",
+                            color = if (item.searched) Accent else Subtle,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailScreen(comic: Comic, favorited: Boolean, vm: ScoutViewModel, onBack: () -> Unit) {
+    var active by remember { mutableIntStateOf(0) }
+    val gallery: List<Pair<String?, String?>> =
+        listOf(null to null) + comic.extraPages.map { it.photoId to it.file }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 24.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            Text("JM${comic.id}", fontFamily = FontFamily.Monospace, color = Muted)
+        }
+        val current = gallery.getOrNull(active)
+        Box(
+            Modifier
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .aspectRatio(3f / 4f)
+                .background(Surface2),
+        ) {
+            CoverImage(comic.id, current?.first, current?.second, Modifier.fillMaxSize())
+        }
+        if (gallery.size > 1) {
+            Column(
+                Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                gallery.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { item ->
+                            val index = gallery.indexOf(item)
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .aspectRatio(3f / 4f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(
+                                        1.dp,
+                                        if (active == index) Accent else Color.Transparent,
+                                        RoundedCornerShape(8.dp),
+                                    )
+                                    .clickable { active = index },
+                            ) {
+                                CoverImage(comic.id, item.first, item.second, Modifier.fillMaxSize())
+                            }
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Text("车号 ${comic.id}", fontFamily = FontFamily.Monospace, color = Muted, fontSize = 12.sp)
+            Text(
+                if (comic.found) comic.name else "没有这部",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            if (comic.authors.isNotEmpty()) {
+                Text("作者", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
+                Text(comic.authors.joinToString(" / "), modifier = Modifier.padding(top = 4.dp))
+            }
+            if (comic.description.isNotBlank()) {
+                Text("描述", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
+                Text(comic.description, color = Muted, modifier = Modifier.padding(top = 4.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = { vm.toggleFavorite(comic) },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (favorited) Surface2 else Accent,
+                    contentColor = if (favorited) Ink else AccentFg,
+                ),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Icon(if (favorited) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null)
+                Spacer(Modifier.size(8.dp))
+                Text(if (favorited) "取消收藏" else "收藏")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@Composable
+private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostController) {
+    val ctx = LocalContext.current
+    val list = state.favorites.values
+        .filter { if (state.favTab == "pending") !it.exported else it.exported }
+        .sortedByDescending { it.savedAt }
+    val import = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        ctx.contentResolver.openInputStream(uri)?.use {
+            vm.importJson(it.readBytes().toString(Charsets.UTF_8))
+        }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Surface)
+                .padding(4.dp),
+        ) {
+            listOf("pending" to "未导出", "exported" to "已导出").forEach { (id, label) ->
+                val on = state.favTab == id
+                TextButton(
+                    onClick = { vm.setFavTab(id) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(if (on) Surface2 else Color.Transparent, RoundedCornerShape(8.dp)),
+                ) { Text(label, color = if (on) Ink else Muted) }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = {
+                val json = vm.backupJson()
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, json)
+                    putExtra(Intent.EXTRA_SUBJECT, "禁漫查号收藏")
+                }
+                ctx.startActivity(Intent.createChooser(send, "搬家导出"))
+            }) { Text("搬家导出") }
+            TextButton(onClick = { import.launch("*/*") }) { Text("导入") }
+        }
+        if (list.isEmpty()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Surface)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(if (state.favTab == "pending") "没有未导出的收藏" else "还没有已导出的收藏")
+                Text("详情页点收藏，封面会出现在这里。长按可选中后导出。", color = Muted, fontSize = 14.sp)
+            }
+        } else {
+            Text(
+                "${list.size} 本" + if (state.selecting) " · 已选 ${state.selected.size}" else " · 长按多选",
+                color = Muted,
+                fontSize = 14.sp,
+            )
+            if (state.selecting) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { vm.selectAll(list.map { it.comic.id }) }) { Text("全选") }
+                    TextButton(onClick = vm::exitSelect) { Text("取消") }
+                    TextButton(onClick = vm::deleteSelected) { Text("删除") }
+                    if (state.favTab == "exported") {
+                        TextButton(onClick = { vm.markUnexported(state.selected) }) { Text("撤回") }
+                    } else {
+                        TextButton(onClick = {
+                            val ids = state.selected.toList()
+                            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("ids", ids.joinToString(",")))
+                            vm.markExported(ids)
+                        }) { Text("导出") }
+                    }
+                }
+            }
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                items(list, key = { it.comic.id }) { fav ->
+                    val on = fav.comic.id in state.selected
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(if (on) 1.dp else 0.dp, Accent, RoundedCornerShape(12.dp))
+                            .combinedClickable(
+                                onClick = {
+                                    if (state.selecting) vm.toggleSelect(fav.comic.id)
+                                    else nav.navigate("detail/${fav.comic.id}")
+                                },
+                                onLongClick = { vm.enterSelect(fav.comic.id) },
+                            ),
+                    ) {
+                        Box(Modifier.aspectRatio(3f / 4f)) {
+                            CoverImage(fav.comic.id, modifier = Modifier.fillMaxSize())
+                            Text(
+                                fav.comic.id,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(6.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Ink.copy(alpha = 0.75f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = AccentFg,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                            if (state.selecting) {
+                                Box(
+                                    Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(if (on) Accent else Paper.copy(alpha = 0.5f))
+                                        .border(1.dp, if (on) Accent else Paper, CircleShape),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingBar(modifier: Modifier, onSearch: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        modifier
+            .navigationBarsPadding()
+            .padding(16.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Ink)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("检测到新复制的内容", color = AccentFg, modifier = Modifier.weight(1f), fontSize = 14.sp)
+        TextButton(onClick = onSearch) { Text("搜索新内容", color = AccentFg) }
+        TextButton(onClick = onDismiss) { Text("×", color = AccentFg) }
+    }
+}
