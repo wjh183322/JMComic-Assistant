@@ -1017,6 +1017,7 @@ private fun ReaderScreen(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(chapterId) { vm.loadChapterPages(chapterId) }
+    BackHandler(onBack = onBack)
     val view = LocalView.current
     DisposableEffect(view) {
         val oldV = view.isVerticalScrollBarEnabled
@@ -1028,10 +1029,6 @@ private fun ReaderScreen(
             view.isHorizontalScrollBarEnabled = oldH
         }
     }
-    val comic = state.cache[albumId] ?: state.favorites[albumId]?.comic
-    val title = comic?.chapters?.indexOfFirst { it.id == chapterId }?.takeIf { it >= 0 }?.let { i ->
-        chapterLabel(i, comic.chapters[i])
-    } ?: "阅读"
     val listState = rememberLazyListState()
     val total = state.readPages.size
     val current by remember(total) {
@@ -1044,48 +1041,13 @@ private fun ReaderScreen(
         }
     }
     val fraction = if (total == 0) 0f else current / total.toFloat()
-    Column(
+    Box(
         Modifier
             .fillMaxSize()
-            .background(Paper)
-            .statusBarsPadding(),
+            .background(Paper),
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-            }
-            Text(
-                title,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (total > 0) {
-                Text(
-                    "$current/$total",
-                    color = Subtle,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(end = 12.dp),
-                )
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(ColorLine)) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                    .background(Accent),
-            )
-        }
         if (state.reading && state.readPages.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Accent)
-            }
+            CircularProgressIndicator(color = Accent, modifier = Modifier.align(Alignment.Center))
         } else {
             LazyColumn(
                 state = listState,
@@ -1102,6 +1064,32 @@ private fun ReaderScreen(
                     )
                 }
             }
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(ColorLine.copy(alpha = 0.4f)),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .background(Accent),
+            )
+        }
+        if (total > 0) {
+            Text(
+                "$current/$total",
+                color = Ink.copy(alpha = 0.45f),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 6.dp, end = 10.dp),
+            )
         }
     }
 }
