@@ -108,6 +108,9 @@ import com.jinman.assistant.UiState
 import com.jinman.assistant.data.Comic
 import com.jinman.assistant.data.chapterLabel
 import com.jinman.assistant.data.methodLabel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 private val ColorLine = Color(0xFFD8D2C8)
@@ -683,6 +686,17 @@ private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostCont
             vm.importJson(it.readBytes().toString(Charsets.UTF_8))
         }
     }
+    val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                out.write(vm.backupJson().toByteArray(Charsets.UTF_8))
+            } ?: error("无法写入")
+            vm.notify("已保存收藏文件，传到另一台后点导入")
+        }.onFailure {
+            vm.notify("保存失败")
+        }
+    }
 
     Column(
         Modifier
@@ -715,13 +729,12 @@ private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostCont
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = {
-                val json = vm.backupJson()
-                val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, json)
-                    putExtra(Intent.EXTRA_SUBJECT, "禁漫助手收藏")
+                if (state.favorites.isEmpty()) {
+                    vm.notify("还没有收藏可导出")
+                    return@TextButton
                 }
-                ctx.startActivity(Intent.createChooser(send, "搬家导出"))
+                val name = "禁漫助手收藏-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.json"
+                exportFile.launch(name)
             }) { Text("搬家导出") }
             TextButton(onClick = { import.launch("*/*") }) { Text("导入") }
         }

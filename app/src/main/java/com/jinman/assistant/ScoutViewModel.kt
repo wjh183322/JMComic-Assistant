@@ -89,6 +89,8 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissToast() = _state.update { it.copy(toast = null) }
 
+    fun notify(message: String) = _state.update { it.copy(toast = message) }
+
     fun closePicker() = _state.update { it.copy(picker = emptyList()) }
 
     suspend fun searchDraft(): SearchNav = searchIds(_state.value.extracted)
