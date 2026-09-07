@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -176,10 +177,11 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                         vm = vm,
                         onSearch = { scope.launch { handle(vm.searchDraft()) } },
                         onOpenSession = { nav.navigate("session") },
+                        onSettings = { nav.navigate("settings") },
                     )
                 }
                 composable("session") {
-                    SessionScreen(state, nav) { id ->
+                    SessionScreen(state, nav, onSettings = { nav.navigate("settings") }) { id ->
                         scope.launch { handle(vm.searchOne(id)) }
                     }
                 }
@@ -189,10 +191,15 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                     if (comic == null) {
                         LaunchedEffect(id) { handle(vm.searchOne(id)) }
                     } else {
-                        DetailScreen(comic, state.favorites.containsKey(id), vm) { nav.popBackStack() }
+                        DetailScreen(comic, state, vm) { nav.popBackStack() }
                     }
                 }
                 composable("favorites") { FavoritesScreen(state, vm, nav) }
+                composable("settings") {
+                    SettingsScreen(state, nav) { id ->
+                        scope.launch { handle(vm.searchOne(id)) }
+                    }
+                }
             }
             if (state.pendingClipboard != null) {
                 PendingBar(
@@ -248,6 +255,7 @@ private fun HomeScreen(
     vm: ScoutViewModel,
     onSearch: () -> Unit,
     onOpenSession: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val ctx = LocalContext.current
     Column(
@@ -256,7 +264,12 @@ private fun HomeScreen(
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Text("禁漫查号", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Ink)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("禁漫查号", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Ink, modifier = Modifier.weight(1f))
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "设置", tint = Muted)
+            }
+        }
         Spacer(Modifier.height(16.dp))
         Column(
             Modifier
@@ -353,6 +366,7 @@ private fun HomeScreen(
 private fun SessionScreen(
     state: UiState,
     nav: NavHostController,
+    onSettings: () -> Unit,
     onOpen: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -369,6 +383,9 @@ private fun SessionScreen(
                 Text("点进详情；长按复制车号（不含 JM）", color = Subtle, fontSize = 12.sp)
             }
             TextButton(onClick = { nav.navigate("home") }) { Text("改原文") }
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "设置", tint = Muted)
+            }
         }
         Spacer(Modifier.height(12.dp))
         if (state.session.isEmpty()) {
@@ -437,8 +454,10 @@ private fun MetaBlock(label: String, values: List<String>) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DetailScreen(comic: Comic, favorited: Boolean, vm: ScoutViewModel, onBack: () -> Unit) {
+private fun DetailScreen(comic: Comic, state: UiState, vm: ScoutViewModel, onBack: () -> Unit) {
     var viewer by remember { mutableStateOf<Int?>(null) }
+    val favorited = state.favorites.containsKey(comic.id)
+    val blocked = state.blacklist.containsKey(comic.id)
     val gallery: List<Pair<String?, String?>> =
         listOf(null to null) + comic.extraPages.map { it.photoId to it.file }
     Column(
@@ -505,6 +524,15 @@ private fun DetailScreen(comic: Comic, favorited: Boolean, vm: ScoutViewModel, o
                 Icon(if (favorited) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null)
                 Spacer(Modifier.size(8.dp))
                 Text(if (favorited) "取消收藏" else "收藏")
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { vm.toggleBlacklist(comic) }) {
+                    Text(
+                        if (blocked) "移出黑名单" else "加入黑名单",
+                        color = Subtle,
+                        fontSize = 12.sp,
+                    )
+                }
             }
         }
     }
@@ -580,6 +608,12 @@ private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostCont
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("收藏", fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            IconButton(onClick = { nav.navigate("settings") }) {
+                Icon(Icons.Default.Settings, contentDescription = "设置", tint = Muted)
+            }
+        }
         Row(
             Modifier
                 .fillMaxWidth()
@@ -711,5 +745,58 @@ private fun PendingBar(modifier: Modifier, onSearch: () -> Unit, onDismiss: () -
         Text("检测到新复制的内容", color = AccentFg, modifier = Modifier.weight(1f), fontSize = 14.sp)
         TextButton(onClick = onSearch) { Text("搜索新内容", color = AccentFg) }
         TextButton(onClick = onDismiss) { Text("×", color = AccentFg) }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    state: UiState,
+    nav: NavHostController,
+    onOpen: (String) -> Unit,
+) {
+    val list = state.blacklist.values.sortedByDescending { it.addedAt }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { nav.popBackStack() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            Text("设置", fontWeight = FontWeight.Medium, fontSize = 18.sp)
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("功能黑名单", fontWeight = FontWeight.Medium)
+        Text("拉黑的禁漫车按列表排列，点进去可看详情。", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        Spacer(Modifier.height(12.dp))
+        if (list.isEmpty()) {
+            Text("还没有拉黑的车号", color = Muted, modifier = Modifier.padding(top = 24.dp))
+        } else {
+            Column(
+                Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Surface),
+            ) {
+                list.forEachIndexed { i, item ->
+                    if (i > 0) HorizontalDivider(color = ColorLine)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpen(item.id) }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("JM${item.id}", fontFamily = FontFamily.Monospace, fontSize = 16.sp)
+                            if (item.name.isNotBlank() && item.name != "JM${item.id}") {
+                                Text(item.name, color = Subtle, fontSize = 12.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

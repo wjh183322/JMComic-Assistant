@@ -3,6 +3,8 @@ package com.jinman.chahao
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.jinman.chahao.data.Blacklisted
+import com.jinman.chahao.data.BlacklistStore
 import com.jinman.chahao.data.Comic
 import com.jinman.chahao.data.ExtractedId
 import com.jinman.chahao.data.FavoriteComic
@@ -32,6 +34,7 @@ data class UiState(
     val selecting: Boolean = false,
     val selected: Set<String> = emptySet(),
     val toast: String? = null,
+    val blacklist: Map<String, Blacklisted> = emptyMap(),
 )
 
 sealed class SearchNav {
@@ -42,7 +45,10 @@ sealed class SearchNav {
 
 class ScoutViewModel(app: Application) : AndroidViewModel(app) {
     private val store = FavoritesStore(app)
-    private val _state = MutableStateFlow(UiState(favorites = store.load()))
+    private val blacklistStore = BlacklistStore(app)
+    private val _state = MutableStateFlow(
+        UiState(favorites = store.load(), blacklist = blacklistStore.load()),
+    )
     val state: StateFlow<UiState> = _state
     private var clipboardPrimed = false
 
@@ -150,6 +156,25 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
             else next[comic.id] = FavoriteComic(comic, System.currentTimeMillis(), false)
             store.save(next)
             s.copy(favorites = next, toast = if (next.containsKey(comic.id)) "已加入收藏夹" else "已取消收藏")
+        }
+    }
+
+    fun toggleBlacklist(comic: Comic) {
+        if (comic.id.isBlank()) return
+        _state.update { s ->
+            val next = s.blacklist.toMutableMap()
+            val removing = next.containsKey(comic.id)
+            if (removing) next.remove(comic.id)
+            else next[comic.id] = Blacklisted(
+                id = comic.id,
+                name = comic.name.ifBlank { "JM${comic.id}" },
+                addedAt = System.currentTimeMillis(),
+            )
+            blacklistStore.save(next)
+            s.copy(
+                blacklist = next,
+                toast = if (removing) "已移出黑名单" else "已加入黑名单",
+            )
         }
     }
 

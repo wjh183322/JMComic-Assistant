@@ -38,6 +38,12 @@ data class FavoriteComic(
     val exportedAt: Long? = null,
 )
 
+data class Blacklisted(
+    val id: String,
+    val name: String,
+    val addedAt: Long,
+)
+
 fun methodLabel(method: String) = when (method) {
     "prefixed" -> "车牌"
     "cipher" -> "暗号"
