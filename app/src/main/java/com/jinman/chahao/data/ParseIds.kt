@@ -22,6 +22,8 @@ object ParseIds {
         Regex("""(?:JM|jm|Jm|禁漫(?:天堂)?|车[牌号]|車牌|車號)\s*[:：#号號]?\s*(\d{4,8})""")
     private val COLON = Regex("""[：:]\s*(\d{5,8})(?!\d)""")
     private val STANDALONE = Regex("""(?<!\d)(\d{5,8})(?!\d)""")
+    // 抖音评论：@用户名: 正文。用户名里的数字不能当车号。
+    private val MENTION = Regex("""@[^\n@：:]{1,40}[：:]""")
 
     fun normalize(text: String): String {
         val sb = StringBuilder(text.length)
@@ -74,6 +76,8 @@ object ParseIds {
 
         fun overlaps(start: Int, end: Int) =
             used.any { start < it.last + 1 && end > it.first }
+
+        MENTION.findAll(text).forEach { used += it.range }
 
         fun snippet(start: Int, end: Int): String {
             val a = (start - 6).coerceAtLeast(0)
