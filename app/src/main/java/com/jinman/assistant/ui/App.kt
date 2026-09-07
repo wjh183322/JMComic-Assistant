@@ -1,4 +1,4 @@
-package com.jinman.chahao.ui
+package com.jinman.assistant.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -101,13 +101,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.jinman.chahao.ReadNav
-import com.jinman.chahao.ScoutViewModel
-import com.jinman.chahao.SearchNav
-import com.jinman.chahao.UiState
-import com.jinman.chahao.data.Comic
-import com.jinman.chahao.data.chapterLabel
-import com.jinman.chahao.data.methodLabel
+import com.jinman.assistant.ReadNav
+import com.jinman.assistant.ScoutViewModel
+import com.jinman.assistant.SearchNav
+import com.jinman.assistant.UiState
+import com.jinman.assistant.data.Comic
+import com.jinman.assistant.data.chapterLabel
+import com.jinman.assistant.data.methodLabel
 import kotlinx.coroutines.launch
 
 private val ColorLine = Color(0xFFD8D2C8)

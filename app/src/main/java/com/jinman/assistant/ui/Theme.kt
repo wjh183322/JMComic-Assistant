@@ -1,4 +1,4 @@
-package com.jinman.chahao.ui
+package com.jinman.assistant.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme

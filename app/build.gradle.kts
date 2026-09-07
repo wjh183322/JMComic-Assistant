@@ -9,15 +9,15 @@ kotlin {
 }
 
 android {
-    namespace = "com.jinman.chahao"
+    namespace = "com.jinman.assistant"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.jinman.chahao"
+        applicationId = "com.jinman.assistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.4.2"
+        versionCode = 23
+        versionName = "1.4.3"
     }
 
     buildTypes {

@@ -1,4 +1,4 @@
-package com.jinman.chahao.ui
+package com.jinman.assistant.ui
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
-import com.jinman.chahao.data.JmApi
-import com.jinman.chahao.data.descramble
+import com.jinman.assistant.data.JmApi
+import com.jinman.assistant.data.descramble
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request

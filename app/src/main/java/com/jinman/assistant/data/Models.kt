@@ -1,4 +1,4 @@
-package com.jinman.chahao.data
+package com.jinman.assistant.data
 
 data class ExtractedId(
     val id: String,

@@ -1,4 +1,4 @@
-package com.jinman.chahao
+package com.jinman.assistant
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,8 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jinman.chahao.ui.App
-import com.jinman.chahao.ui.JinmanTheme
+import com.jinman.assistant.ui.App
+import com.jinman.assistant.ui.JinmanTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

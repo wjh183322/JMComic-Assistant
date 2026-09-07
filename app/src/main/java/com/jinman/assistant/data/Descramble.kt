@@ -1,4 +1,4 @@
-package com.jinman.chahao.data
+package com.jinman.assistant.data
 
 import android.graphics.Bitmap
 import android.graphics.Canvas

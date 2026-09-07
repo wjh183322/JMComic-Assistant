@@ -1,4 +1,4 @@
-package com.jinman.chahao.data
+package com.jinman.assistant.data
 
 object ParseIds {
     private val CN_DIGIT = mapOf(

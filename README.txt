@@ -1,4 +1,4 @@
-JM Assistant  v1.4.2  (禁漫助手)
+JM Assistant  v1.4.3  (禁漫助手)
 =============================
 
 完整原生安卓工程，装上就能用。查号、封面、收藏、阅读都在手机里，不填网址。
@@ -23,10 +23,10 @@ Windows 必读
 3. 等同步结束，菜单 Build → Build Bundle(s) / APK(s) → Build APK(s)。
 4. 编好的包会复制到：
 
-     C:\Users\Jiahao\jm-assistant\apk\jm-assistant-v1.4.2.apk
+     C:\Users\Jiahao\jm-assistant\apk\jm-assistant-v1.4.3.apk
 
-   把这个文件拷到小米覆盖安装即可。不要先卸载，卸载会清掉收藏。
-   包名一直是 com.jinman.chahao（和旧版「禁漫查号」是同一个应用）。
+   本版是新包名 com.jinman.assistant，和旧版「禁漫查号」不是同一个应用。
+   请先在旧版里点搬家导出，装上本版后再导入。不要指望覆盖安装保留收藏。
 
    想改名字或保存位置：打开 android/app/build.gradle.kts
    - outputFileName 改文件名
