@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed as lazyListItems
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +44,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
@@ -78,6 +82,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -774,26 +779,56 @@ private fun SettingsScreen(
         if (list.isEmpty()) {
             Text("还没有拉黑的车号", color = Muted, modifier = Modifier.padding(top = 24.dp))
         } else {
-            Column(
-                Modifier
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface),
             ) {
-                list.forEachIndexed { i, item ->
-                    if (i > 0) HorizontalDivider(color = ColorLine)
+                lazyListItems(list, key = { it.id }) { index, item ->
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .clickable { onOpen(item.id) }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("JM${item.id}", fontFamily = FontFamily.Monospace, fontSize = 16.sp)
-                            if (item.name.isNotBlank() && item.name != "JM${item.id}") {
-                                Text(item.name, color = Subtle, fontSize = 12.sp, maxLines = 1)
-                            }
+                        Box(
+                            Modifier
+                                .width(48.dp)
+                                .height(64.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Surface2),
+                        ) {
+                            CoverImage(item.id, modifier = Modifier.fillMaxSize())
                         }
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                        ) {
+                            Text(
+                                item.name.ifBlank { "JM${item.id}" },
+                                fontSize = 15.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                "JM${item.id}",
+                                color = Subtle,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Subtle,
+                        )
+                    }
+                    if (index < list.lastIndex) {
+                        HorizontalDivider(color = ColorLine, thickness = 0.5.dp)
                     }
                 }
             }
