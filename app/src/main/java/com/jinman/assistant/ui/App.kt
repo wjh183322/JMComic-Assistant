@@ -457,7 +457,7 @@ private fun SessionScreen(
         } else {
             Column(
                 Modifier
-                    .weight(1f)
+                    .weight(1f, fill = false)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface),
             ) {
