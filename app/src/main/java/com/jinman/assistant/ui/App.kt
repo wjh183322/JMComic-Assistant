@@ -15,7 +15,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -83,9 +87,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -111,6 +118,7 @@ import com.jinman.assistant.data.methodLabel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 private val ColorLine = Color(0xFFD8D2C8)
@@ -1030,24 +1038,28 @@ private fun ReaderScreen(
         }
     }
     val listState = rememberLazyListState()
-    val total = state.readPages.size
-    val current by remember(total) {
+    val fraction by remember {
         derivedStateOf {
-            if (total == 0) 0
+            val info = listState.layoutInfo
+            val n = info.totalItemsCount
+            if (n <= 1) 0f
             else {
-                val last = listState.layoutInfo.visibleItemsInfo.maxByOrNull { it.index }?.index ?: 0
-                (last + 1).coerceIn(1, total)
+                val first = info.visibleItemsInfo.firstOrNull() ?: return@derivedStateOf 0f
+                val size = first.size.coerceAtLeast(1)
+                val pos = first.index + (-first.offset).toFloat() / size
+                (pos / (n - 1).toFloat()).coerceIn(0f, 1f)
             }
         }
     }
-    val fraction = if (total == 0) 0f else current / total.toFloat()
+    val jmOrange = Color(0xFFFF7A18)
     Box(
         Modifier
             .fillMaxSize()
-            .background(Paper),
+            .background(Color.Black)
+            .swipeBack(onBack),
     ) {
         if (state.reading && state.readPages.isEmpty()) {
-            CircularProgressIndicator(color = Accent, modifier = Modifier.align(Alignment.Center))
+            CircularProgressIndicator(color = jmOrange, modifier = Modifier.align(Alignment.Center))
         } else {
             LazyColumn(
                 state = listState,
@@ -1065,31 +1077,52 @@ private fun ReaderScreen(
                 }
             }
         }
-        Box(
+        BoxWithConstraints(
             Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(ColorLine.copy(alpha = 0.4f)),
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(10.dp),
         ) {
+            val thumb = 36.dp
+            val travel = (maxHeight - thumb).coerceAtLeast(0.dp)
             Box(
                 Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                    .background(Accent),
+                    .align(Alignment.TopEnd)
+                    .padding(end = 3.dp)
+                    .offset(y = travel * fraction)
+                    .width(3.dp)
+                    .height(thumb)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(jmOrange),
             )
         }
-        if (total > 0) {
-            Text(
-                "$current/$total",
-                color = Ink.copy(alpha = 0.45f),
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 6.dp, end = 10.dp),
-            )
+    }
+}
+
+private fun Modifier.swipeBack(onBack: () -> Unit): Modifier = composed {
+    val density = LocalDensity.current
+    pointerInput(onBack) {
+        val edge = with(density) { 56.dp.toPx() }
+        val trigger = with(density) { 80.dp.toPx() }
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (down.position.x > edge) return@awaitEachGesture
+            var dx = 0f
+            var dy = 0f
+            var tracking = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull() ?: break
+                val delta = change.position - down.position
+                dx = delta.x
+                dy = delta.y
+                if (!tracking && (abs(dx) > 18f || abs(dy) > 18f)) {
+                    tracking = dx > 0f && abs(dx) > abs(dy) * 1.2f
+                }
+                if (tracking) change.consume()
+                if (!change.pressed) break
+            }
+            if (tracking && dx > trigger) onBack()
         }
     }
 }
