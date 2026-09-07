@@ -316,7 +316,7 @@ private fun HomeScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("禁漫查号", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Ink, modifier = Modifier.weight(1f))
+            Text("禁漫助手", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Ink, modifier = Modifier.weight(1f))
             IconButton(onClick = onSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "设置", tint = Muted)
             }
@@ -719,7 +719,7 @@ private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostCont
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, json)
-                    putExtra(Intent.EXTRA_SUBJECT, "禁漫查号收藏")
+                    putExtra(Intent.EXTRA_SUBJECT, "禁漫助手收藏")
                 }
                 ctx.startActivity(Intent.createChooser(send, "搬家导出"))
             }) { Text("搬家导出") }

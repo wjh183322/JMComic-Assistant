@@ -16,8 +16,8 @@ android {
         applicationId = "com.jinman.chahao"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21
-        versionName = "1.4.1"
+        versionCode = 22
+        versionName = "1.4.2"
     }
 
     buildTypes {
@@ -40,12 +40,12 @@ android {
     }
 }
 
-// APK 文件名：jm-scout-v版本号.apk
-// 编完后复制到工程上一级的 apk 文件夹，例如 C:\Users\Jiahao\jm-scout\apk\
+// APK 文件名：jm-assistant-v版本号.apk
+// 编完后复制到工程上一级的 apk 文件夹，例如 C:\Users\Jiahao\jm-assistant\apk\
 android.applicationVariants.configureEach {
     val ver = versionName
     outputs.configureEach {
-        (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "jm-scout-v$ver.apk"
+        (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "jm-assistant-v$ver.apk"
     }
 }
 

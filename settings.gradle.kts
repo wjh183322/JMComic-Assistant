@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "JinmanChahao"
+rootProject.name = "JmAssistant"
 include(":app")
