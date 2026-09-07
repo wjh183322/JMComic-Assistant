@@ -1,4 +1,4 @@
-JM Scout  v1.2  (禁漫查号)
+JM Scout  v1.2.9  (禁漫查号)
 =========================
 
 完整原生安卓工程，装上就能用。查号、封面、收藏都在手机里，不填网址。
@@ -21,7 +21,16 @@ Windows 必读
 1. Gradle JVM 选 21（弹出不兼容时点 Use JVM 21，不要选 25）。
 2. 不要点 AGP Upgrade Assistant。
 3. 等同步结束，菜单 Build → Build Bundle(s) / APK(s) → Build APK(s)。
-4. 点 locate，把 app-debug.apk 拷到小米安装（覆盖旧版即可）。
+4. 编好的包会复制到：
+
+     C:\Users\Jiahao\jm-scout\apk\jm-scout-v1.2.9.apk
+
+   把这个文件拷到小米覆盖安装即可。不要先卸载，卸载会清掉收藏。
+   包名一直是 com.jinman.chahao。
+
+   想改名字或保存位置：打开 android/app/build.gradle.kts
+   - outputFileName 改文件名
+   - resolve("../apk") 改保存目录
 
 本版已包含
 ----------

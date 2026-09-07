@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -31,6 +33,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,6 +51,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -60,6 +66,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -72,6 +79,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -101,7 +110,7 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
         val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val text = cm.primaryClip?.takeIf { it.itemCount > 0 }
             ?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
-        if (text.isNotBlank()) vm.ingestClipboard(text)
+        vm.ingestClipboard(text)
     }
     LaunchedEffect(state.toast) {
         val t = state.toast ?: return@LaunchedEffect
@@ -198,10 +207,10 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
     if (state.picker.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = vm::closePicker,
-            title = { Text("选择一个车号") },
+            title = { Text("选择一个禁漫车") },
             text = {
                 Column {
-                    Text("这段里有多个完整车号，选一个进行搜索。", color = Muted, fontSize = 14.sp)
+                    Text("这段里有多个完整禁漫车，选一个进行搜索。", color = Muted, fontSize = 14.sp)
                     Spacer(Modifier.height(12.dp))
                     state.picker.forEach { item ->
                         TextButton(
@@ -211,7 +220,7 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(item.id, fontFamily = FontFamily.Monospace, color = Ink)
+                            Text("JM${item.id}", fontFamily = FontFamily.Monospace, color = Ink)
                             Spacer(Modifier.weight(1f))
                             Text(methodLabel(item.method), color = Muted, fontSize = 12.sp)
                         }
@@ -255,15 +264,20 @@ private fun HomeScreen(
                 .background(Surface)
                 .padding(16.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("原文", fontWeight = FontWeight.Medium)
-                TextButton(onClick = {
+                Row {
+                    if (state.draft.isNotBlank()) {
+                        TextButton(onClick = { vm.setDraft("") }) { Text("清除") }
+                    }
+                    TextButton(onClick = {
                     val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val text = cm.primaryClip?.takeIf { it.itemCount > 0 }
                         ?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
                     if (text.isBlank()) vm.setDraft(state.draft)
                     else vm.setDraft(text)
                 }) { Text("读取剪贴板") }
+                }
             }
             OutlinedTextField(
                 value = state.draft,
@@ -278,11 +292,11 @@ private fun HomeScreen(
             )
             if (state.extracted.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                Text("识别到的车号", color = Subtle, fontSize = 12.sp)
+                Text("识别到的禁漫车", color = Subtle, fontSize = 12.sp)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.extracted.forEach {
                         Text(
-                            "${it.id}  ${methodLabel(it.method)}",
+                            "JM${it.id}  ${methodLabel(it.method)}",
                             modifier = Modifier
                                 .padding(top = 6.dp)
                                 .clip(RoundedCornerShape(50))
@@ -295,7 +309,7 @@ private fun HomeScreen(
                     }
                 }
             } else if (state.draft.isNotBlank()) {
-                Text("未能识别车号", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                Text("未能识别禁漫车", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
             }
             Spacer(Modifier.height(12.dp))
             Button(
@@ -334,12 +348,15 @@ private fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SessionScreen(
     state: UiState,
     nav: NavHostController,
     onOpen: (String) -> Unit,
 ) {
+    val ctx = LocalContext.current
+    var skipClick by remember { mutableStateOf(false) }
     Column(
         Modifier
             .fillMaxSize()
@@ -349,7 +366,7 @@ private fun SessionScreen(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("本次识别", fontWeight = FontWeight.Medium)
-                Text("只显示车号，已查过的会标记", color = Subtle, fontSize = 12.sp)
+                Text("点进详情；长按复制车号（不含 JM）", color = Subtle, fontSize = 12.sp)
             }
             TextButton(onClick = { nav.navigate("home") }) { Text("改原文") }
         }
@@ -367,11 +384,22 @@ private fun SessionScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onOpen(item.id) }
+                            .combinedClickable(
+                                onClick = {
+                                    if (skipClick) skipClick = false
+                                    else onOpen(item.id)
+                                },
+                                onLongClick = {
+                                    skipClick = true
+                                    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    cm.setPrimaryClip(ClipData.newPlainText("id", item.id))
+                                    Toast.makeText(ctx, "已复制 ${item.id}", Toast.LENGTH_SHORT).show()
+                                },
+                            )
                             .padding(horizontal = 16.dp, vertical = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(item.id, fontFamily = FontFamily.Monospace, fontSize = 16.sp)
+                        Text("JM${item.id}", fontFamily = FontFamily.Monospace, fontSize = 16.sp)
                         Text(
                             if (item.searched) "已查" else "未查",
                             color = if (item.searched) Accent else Subtle,
@@ -384,9 +412,33 @@ private fun SessionScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MetaBlock(label: String, values: List<String>) {
+    if (values.isEmpty()) return
+    Text(label, color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
+    FlowRow(
+        modifier = Modifier.padding(top = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        values.forEach { tag ->
+            Text(
+                tag,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Surface2)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DetailScreen(comic: Comic, favorited: Boolean, vm: ScoutViewModel, onBack: () -> Unit) {
-    var active by remember { mutableIntStateOf(0) }
+    var viewer by remember { mutableStateOf<Int?>(null) }
     val gallery: List<Pair<String?, String?>> =
         listOf(null to null) + comic.extraPages.map { it.photoId to it.file }
     Column(
@@ -402,57 +454,40 @@ private fun DetailScreen(comic: Comic, favorited: Boolean, vm: ScoutViewModel, o
             }
             Text("JM${comic.id}", fontFamily = FontFamily.Monospace, color = Muted)
         }
-        val current = gallery.getOrNull(active)
-        Box(
-            Modifier
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .aspectRatio(3f / 4f)
-                .background(Surface2),
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CoverImage(comic.id, current?.first, current?.second, Modifier.fillMaxSize())
-        }
-        if (gallery.size > 1) {
-            Column(
-                Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                gallery.chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { item ->
-                            val index = gallery.indexOf(item)
-                            Box(
-                                Modifier
-                                    .weight(1f)
-                                    .aspectRatio(3f / 4f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .border(
-                                        1.dp,
-                                        if (active == index) Accent else Color.Transparent,
-                                        RoundedCornerShape(8.dp),
-                                    )
-                                    .clickable { active = index },
-                            ) {
-                                CoverImage(comic.id, item.first, item.second, Modifier.fillMaxSize())
-                            }
+            gallery.chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { item ->
+                        val index = gallery.indexOf(item)
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .aspectRatio(3f / 4f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewer = index },
+                        ) {
+                            CoverImage(comic.id, item.first, item.second, Modifier.fillMaxSize())
                         }
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("车号 ${comic.id}", fontFamily = FontFamily.Monospace, color = Muted, fontSize = 12.sp)
+            Text("禁漫车 JM${comic.id}", fontFamily = FontFamily.Monospace, color = Muted, fontSize = 12.sp)
             Text(
                 if (comic.found) comic.name else "没有这部",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            if (comic.authors.isNotEmpty()) {
-                Text("作者", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
-                Text(comic.authors.joinToString(" / "), modifier = Modifier.padding(top = 4.dp))
-            }
+            MetaBlock("作者", comic.authors)
+            MetaBlock("作品", comic.works)
+            MetaBlock("登场人物", comic.actors)
+            MetaBlock("分类标签", comic.tags)
             if (comic.description.isNotBlank()) {
                 Text("描述", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
                 Text(comic.description, color = Muted, modifier = Modifier.padding(top = 4.dp))
@@ -470,6 +505,56 @@ private fun DetailScreen(comic: Comic, favorited: Boolean, vm: ScoutViewModel, o
                 Icon(if (favorited) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null)
                 Spacer(Modifier.size(8.dp))
                 Text(if (favorited) "取消收藏" else "收藏")
+            }
+        }
+    }
+    val open = viewer
+    if (open != null && gallery.isNotEmpty()) {
+        Dialog(
+            onDismissRequest = { viewer = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            val pagerState = rememberPagerState(initialPage = open, pageCount = { gallery.size })
+            BackHandler { viewer = null }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+            ) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                    val item = gallery[page]
+                    CoverImage(
+                        comic.id,
+                        item.first,
+                        item.second,
+                        Modifier.fillMaxSize(),
+                        forceFit = true,
+                    )
+                }
+                IconButton(
+                    onClick = { viewer = null },
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f)),
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White)
+                }
+                Text(
+                    "${pagerState.currentPage + 1} / ${gallery.size}",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(16.dp),
+                )
             }
         }
     }
@@ -582,7 +667,7 @@ private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostCont
                         Box(Modifier.aspectRatio(3f / 4f)) {
                             CoverImage(fav.comic.id, modifier = Modifier.fillMaxSize())
                             Text(
-                                fav.comic.id,
+                                "JM${fav.comic.id}",
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
                                     .padding(6.dp)

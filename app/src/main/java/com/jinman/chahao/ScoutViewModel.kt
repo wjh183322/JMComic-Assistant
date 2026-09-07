@@ -44,6 +44,7 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
     private val store = FavoritesStore(app)
     private val _state = MutableStateFlow(UiState(favorites = store.load()))
     val state: StateFlow<UiState> = _state
+    private var clipboardPrimed = false
 
     fun setDraft(text: String) {
         _state.update {
@@ -58,21 +59,15 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun ingestClipboard(text: String) {
         val next = text.trimEnd()
+        if (!clipboardPrimed) {
+            clipboardPrimed = true
+            _state.update { it.copy(acceptedClipboard = next) }
+            return
+        }
         if (next.isBlank()) return
         val s = _state.value
         if (next == s.acceptedClipboard || next == s.draft) return
-        if (s.acceptedClipboard.isBlank() && s.draft.isBlank()) {
-            _state.update {
-                it.copy(
-                    draft = next,
-                    extracted = ParseIds.extractIds(next),
-                    acceptedClipboard = next,
-                    pendingClipboard = null,
-                )
-            }
-        } else {
-            _state.update { it.copy(pendingClipboard = next) }
-        }
+        _state.update { it.copy(pendingClipboard = next) }
     }
 
     fun dismissPending() = _state.update { it.copy(pendingClipboard = null) }

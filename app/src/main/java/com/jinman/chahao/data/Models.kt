@@ -26,6 +26,9 @@ data class Comic(
     val extraPages: List<ExtraPage>,
     val found: Boolean,
     val error: String? = null,
+    val works: List<String> = emptyList(),
+    val actors: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
 )
 
 data class FavoriteComic(

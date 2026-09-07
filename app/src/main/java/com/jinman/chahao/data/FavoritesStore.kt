@@ -3,33 +3,30 @@ package com.jinman.chahao.data
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 class FavoritesStore(context: Context) {
     private val prefs = context.getSharedPreferences("jm_favorites", Context.MODE_PRIVATE)
+    private val file = File(context.filesDir, "favorites.json")
 
     fun load(): Map<String, FavoriteComic> {
-        val raw = prefs.getString("items", "[]") ?: "[]"
-        val arr = JSONArray(raw)
-        val out = mutableMapOf<String, FavoriteComic>()
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            val comic = comicFromJson(o) ?: continue
-            out[comic.id] = FavoriteComic(
-                comic = comic,
-                savedAt = o.optLong("savedAt", System.currentTimeMillis()),
-                exported = o.optBoolean("exported"),
-                exportedAt = o.optLong("exportedAt").takeIf { it > 0 },
-            )
+        val fromPrefs = parseList(prefs.getString("items", null))
+        val fromFile = if (file.exists()) parseList(runCatching { file.readText() }.getOrNull()) else emptyList()
+        val merged = linkedMapOf<String, FavoriteComic>()
+        for (item in fromFile + fromPrefs) {
+            val prev = merged[item.comic.id]
+            if (prev == null || item.savedAt >= prev.savedAt) merged[item.comic.id] = item
         }
-        return out
+        if (merged.isNotEmpty() && fromPrefs.isEmpty()) save(merged)
+        return merged
     }
 
     fun save(items: Map<String, FavoriteComic>) {
         val arr = JSONArray()
-        items.values.sortedByDescending { it.savedAt }.forEach { fav ->
-            arr.put(favToJson(fav))
-        }
-        prefs.edit().putString("items", arr.toString()).apply()
+        items.values.sortedByDescending { it.savedAt }.forEach { arr.put(favToJson(it)) }
+        val raw = arr.toString()
+        prefs.edit().putString("items", raw).commit()
+        runCatching { file.writeText(raw) }
     }
 
     fun exportJson(items: Map<String, FavoriteComic>): String {
@@ -48,6 +45,24 @@ class FavoritesStore(context: Context) {
             trimmed.startsWith("{") -> JSONObject(trimmed).optJSONArray("items") ?: JSONArray()
             else -> JSONArray(trimmed)
         }
+        return parseArray(arr)
+    }
+
+    private fun parseList(raw: String?): List<FavoriteComic> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return try {
+            val trimmed = raw.trim()
+            if (trimmed.startsWith("{")) {
+                parseArray(JSONObject(trimmed).optJSONArray("items") ?: JSONArray())
+            } else {
+                parseArray(JSONArray(trimmed))
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun parseArray(arr: JSONArray): List<FavoriteComic> {
         val out = mutableListOf<FavoriteComic>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
@@ -69,6 +84,9 @@ class FavoritesStore(context: Context) {
         o.put("name", c.name)
         o.put("description", c.description)
         o.put("authors", JSONArray(c.authors))
+        o.put("works", JSONArray(c.works))
+        o.put("actors", JSONArray(c.actors))
+        o.put("tags", JSONArray(c.tags))
         val pages = JSONArray()
         c.extraPages.forEach { p ->
             pages.put(JSONObject().put("photoId", p.photoId).put("file", p.file))
@@ -84,18 +102,23 @@ class FavoritesStore(context: Context) {
     private fun comicFromJson(o: JSONObject): Comic? {
         val id = o.optString("id")
         if (id.isBlank()) return null
-        val authors = o.optJSONArray("authors")
         val pages = o.optJSONArray("extraPages")
         return Comic(
             id = id,
             name = o.optString("name").ifBlank { "JM$id" },
             description = o.optString("description"),
-            authors = (0 until (authors?.length() ?: 0)).map { authors!!.optString(it) },
+            authors = strList(o.optJSONArray("authors")),
             extraPages = (0 until (pages?.length() ?: 0)).mapNotNull { i ->
                 val p = pages!!.optJSONObject(i) ?: return@mapNotNull null
                 ExtraPage(p.optString("photoId"), p.optString("file"))
             },
             found = o.optBoolean("found", true),
+            works = strList(o.optJSONArray("works")),
+            actors = strList(o.optJSONArray("actors")),
+            tags = strList(o.optJSONArray("tags")),
         )
     }
+
+    private fun strList(arr: JSONArray?): List<String> =
+        (0 until (arr?.length() ?: 0)).map { arr!!.optString(it) }.filter { it.isNotBlank() }
 }

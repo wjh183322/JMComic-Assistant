@@ -126,6 +126,9 @@ object JmApi {
             authors = authors,
             extraPages = extra,
             found = true,
+            works = asList(album.opt("works")),
+            actors = asList(album.opt("actors")),
+            tags = asList(album.opt("tags")),
         )
     }
 

@@ -29,6 +29,7 @@ fun CoverImage(
     photoId: String? = null,
     file: String? = null,
     modifier: Modifier = Modifier,
+    forceFit: Boolean = false,
 ) {
     var failed by remember(id, photoId, file) { mutableStateOf(false) }
     var bmp by remember(id, photoId, file) { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -81,7 +82,7 @@ fun CoverImage(
             bitmap = bmp!!.asImageBitmap(),
             contentDescription = null,
             modifier = modifier.fillMaxSize(),
-            contentScale = if (photoId != null) ContentScale.Fit else ContentScale.Crop,
+            contentScale = if (forceFit || photoId != null) ContentScale.Fit else ContentScale.Crop,
         )
     }
 }

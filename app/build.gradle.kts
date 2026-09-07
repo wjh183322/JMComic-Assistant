@@ -16,8 +16,8 @@ android {
         applicationId = "com.jinman.chahao"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 12
+        versionName = "1.2.9"
     }
 
     buildTypes {
@@ -37,6 +37,33 @@ android {
 
     buildFeatures {
         compose = true
+    }
+}
+
+// APK 文件名：jm-scout-v版本号.apk
+// 编完后复制到工程上一级的 apk 文件夹，例如 C:\Users\Jiahao\jm-scout\apk\
+android.applicationVariants.configureEach {
+    val ver = versionName
+    outputs.configureEach {
+        (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "jm-scout-v$ver.apk"
+    }
+}
+
+fun copyBuiltApk(fromSubdir: String) {
+    val fromDir = layout.buildDirectory.dir("outputs/apk/$fromSubdir").get().asFile
+    val dest = rootProject.projectDir.resolve("../apk").normalize()
+    dest.mkdirs()
+    fromDir.listFiles()?.filter { it.extension.equals("apk", ignoreCase = true) }?.forEach { apk ->
+        apk.copyTo(dest.resolve(apk.name), overwrite = true)
+    }
+}
+
+afterEvaluate {
+    tasks.named("assembleDebug").configure {
+        doLast { copyBuiltApk("debug") }
+    }
+    tasks.named("assembleRelease").configure {
+        doLast { copyBuiltApk("release") }
     }
 }
 
