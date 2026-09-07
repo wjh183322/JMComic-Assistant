@@ -200,8 +200,9 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                     }
                 }
                 composable("favorites") { FavoritesScreen(state, vm, nav) }
-                composable("settings") {
-                    SettingsScreen(state, nav) { id ->
+                composable("settings") { SettingsScreen(state, nav) }
+                composable("blacklist") {
+                    BlacklistScreen(state, nav) { id ->
                         scope.launch { handle(vm.searchOne(id)) }
                     }
                 }
@@ -757,9 +758,8 @@ private fun PendingBar(modifier: Modifier, onSearch: () -> Unit, onDismiss: () -
 private fun SettingsScreen(
     state: UiState,
     nav: NavHostController,
-    onOpen: (String) -> Unit,
 ) {
-    val list = state.blacklist.values.sortedByDescending { it.addedAt }
+    val count = state.blacklist.size
     Column(
         Modifier
             .fillMaxSize()
@@ -773,8 +773,56 @@ private fun SettingsScreen(
             Text("设置", fontWeight = FontWeight.Medium, fontSize = 18.sp)
         }
         Spacer(Modifier.height(16.dp))
-        Text("功能黑名单", fontWeight = FontWeight.Medium)
-        Text("拉黑的禁漫车按列表排列，点进去可看详情。", color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Surface),
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { nav.navigate("blacklist") }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("黑名单")
+                    Text(
+                        if (count == 0) "还没有拉黑的车号" else "${count} 部",
+                        color = Subtle,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Subtle,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BlacklistScreen(
+    state: UiState,
+    nav: NavHostController,
+    onOpen: (String) -> Unit,
+) {
+    val list = state.blacklist.values.sortedByDescending { it.addedAt }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { nav.popBackStack() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            Text("黑名单", fontWeight = FontWeight.Medium, fontSize = 18.sp)
+        }
         Spacer(Modifier.height(12.dp))
         if (list.isEmpty()) {
             Text("还没有拉黑的车号", color = Muted, modifier = Modifier.padding(top = 24.dp))
