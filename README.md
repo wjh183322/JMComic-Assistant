@@ -2,14 +2,15 @@
 
 原生 Android 助手：从抖音评论识别禁漫车号，查询封面与作品信息，本地收藏、阅读、导出。
 
-当前版本 **v1.4.3**。
+当前版本 **v1.4.4**。
 
 > 内容面向成人，请自行判断是否使用。
 
 ## 编译
 
 1. 克隆后用 Android Studio 打开**仓库根目录**。
-2. Gradle JVM 选 **21**。不要升级 AGP。
+2. Gradle JVM 选 **21**。不要升级 AGP，不要点 Upgrade Assistant。
+3. 若 Sync 报 SSL / Could not resolve：本仓库已改国内镜像，点 File → Sync Project with Gradle Files。仍失败就关掉 Studio 再开一次。
 3. Build → Build APK(s)。编好的包会复制到仓库上一级 `apk/jm-assistant-v版本号.apk`。
 
 工程路径不要有中文，例如：
