@@ -23,3 +23,8 @@ git clone https://github.com/wjh183322/JMComic-Assistant.git C:\Users\Jiahao\JMC
 ## 版本
 
 最初存档为 **v1.2**。之后每个版本单独一次 commit，见 [docs/开发文档.md](docs/开发文档.md)。
+
+## 许可
+
+个人自用。未授权请勿把本工具用于他人账号或公开提供下载服务。
+
