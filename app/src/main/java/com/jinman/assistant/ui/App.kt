@@ -592,7 +592,7 @@ private fun DetailScreen(
                 Text(comic.description, color = Muted, modifier = Modifier.padding(top = 4.dp))
             }
             Spacer(Modifier.height(16.dp))
-            if (comic.found) {
+            if (comic.found && favorited) {
                 Button(
                     onClick = onStartRead,
                     modifier = Modifier.fillMaxWidth().height(48.dp),

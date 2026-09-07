@@ -284,6 +284,7 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun startRead(comic: Comic): ReadNav {
         if (!comic.found) return ReadNav.Fail("没有这部")
+        if (!_state.value.favorites.containsKey(comic.id)) return ReadNav.Fail("收藏后才能阅读")
         var chapters = comic.chapters
         if (chapters.isEmpty()) {
             val fresh = withContext(Dispatchers.IO) { JmApi.lookup(comic.id) }
