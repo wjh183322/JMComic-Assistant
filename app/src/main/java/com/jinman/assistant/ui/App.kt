@@ -909,7 +909,7 @@ private fun BlacklistScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface),
             ) {
-                lazyListItems(list, key = { it.id }) { index, item ->
+                lazyListItems(list, key = { _, item -> item.id }) { index, item ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -968,7 +968,7 @@ private fun ChapterListScreen(comic: Comic, nav: NavHostController) {
                 .clip(RoundedCornerShape(16.dp))
                 .background(Surface),
         ) {
-            lazyListItems(comic.chapters, key = { it.id }) { index, ch ->
+            lazyListItems(comic.chapters, key = { _, ch -> ch.id }) { index, ch ->
                 Row(
                     Modifier
                         .fillMaxWidth()

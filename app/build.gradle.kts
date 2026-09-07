@@ -16,8 +16,8 @@ android {
         applicationId = "com.jinman.assistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 24
-        versionName = "1.4.4"
+        versionCode = 25
+        versionName = "1.4.5"
     }
 
     buildTypes {
