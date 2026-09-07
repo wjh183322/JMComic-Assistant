@@ -1,4 +1,4 @@
-JM Scout  v1.3.4  (禁漫查号)
+JM Scout  v1.3.5  (禁漫查号)
 =========================
 
 完整原生安卓工程，装上就能用。查号、封面、收藏都在手机里，不填网址。
@@ -23,7 +23,7 @@ Windows 必读
 3. 等同步结束，菜单 Build → Build Bundle(s) / APK(s) → Build APK(s)。
 4. 编好的包会复制到：
 
-     C:\Users\Jiahao\jm-scout\apk\jm-scout-v1.3.4.apk
+     C:\Users\Jiahao\jm-scout\apk\jm-scout-v1.3.5.apk
 
    把这个文件拷到小米覆盖安装即可。不要先卸载，卸载会清掉收藏。
    包名一直是 com.jinman.chahao。

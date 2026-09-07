@@ -186,7 +186,15 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                     )
                 }
                 composable("session") {
-                    SessionScreen(state, nav, onSettings = { nav.navigate("settings") }) { id ->
+                    SessionScreen(
+                        state = state,
+                        nav = nav,
+                        onSettings = { nav.navigate("settings") },
+                        onHome = {
+                            vm.setDraft("")
+                            nav.navigate("home") { launchSingleTop = true }
+                        },
+                    ) { id ->
                         scope.launch { handle(vm.searchOne(id)) }
                     }
                 }
@@ -373,6 +381,7 @@ private fun SessionScreen(
     state: UiState,
     nav: NavHostController,
     onSettings: () -> Unit,
+    onHome: () -> Unit,
     onOpen: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -399,6 +408,7 @@ private fun SessionScreen(
         } else {
             Column(
                 Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface),
             ) {
@@ -431,6 +441,15 @@ private fun SessionScreen(
                     }
                 }
             }
+        }
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onHome,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Surface2, contentColor = Ink),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Text("返回主页")
         }
     }
 }
