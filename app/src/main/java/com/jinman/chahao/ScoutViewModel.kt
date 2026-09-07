@@ -109,12 +109,24 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun searchIds(ids: List<ExtractedId>): SearchNav {
         if (ids.isEmpty()) return SearchNav.Fail("没有识别到车号")
-        beginSession(ids)
-        if (ids.size > 1) {
-            _state.update { it.copy(picker = ids) }
+        val blocked = _state.value.blacklist.keys
+        val allowed = ids.filter { it.id !in blocked }
+        val skipped = ids.size - allowed.size
+        if (allowed.isEmpty()) {
+            return SearchNav.Fail(
+                if (ids.size == 1) "JM${ids.first().id} 在黑名单中，已禁止搜索"
+                else "识别到的车号都在黑名单中",
+            )
+        }
+        if (skipped > 0) {
+            _state.update { it.copy(toast = "已忽略黑名单中的 $skipped 个车号") }
+        }
+        beginSession(allowed)
+        if (allowed.size > 1) {
+            _state.update { it.copy(picker = allowed) }
             return SearchNav.Picker
         }
-        return lookupAndGo(ids.first().id)
+        return lookupAndGo(allowed.first().id)
     }
 
     private suspend fun lookupAndGo(id: String): SearchNav {
