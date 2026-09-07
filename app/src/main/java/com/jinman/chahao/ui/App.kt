@@ -24,9 +24,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.lazy.itemsIndexed as lazyListItems
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -70,7 +72,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -995,10 +1000,33 @@ private fun ReaderScreen(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(chapterId) { vm.loadChapterPages(chapterId) }
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val oldV = view.isVerticalScrollBarEnabled
+        val oldH = view.isHorizontalScrollBarEnabled
+        view.isVerticalScrollBarEnabled = false
+        view.isHorizontalScrollBarEnabled = false
+        onDispose {
+            view.isVerticalScrollBarEnabled = oldV
+            view.isHorizontalScrollBarEnabled = oldH
+        }
+    }
     val comic = state.cache[albumId] ?: state.favorites[albumId]?.comic
     val title = comic?.chapters?.indexOfFirst { it.id == chapterId }?.takeIf { it >= 0 }?.let { i ->
         chapterLabel(i, comic.chapters[i])
     } ?: "阅读"
+    val listState = rememberLazyListState()
+    val total = state.readPages.size
+    val current by remember(total) {
+        derivedStateOf {
+            if (total == 0) 0
+            else {
+                val last = listState.layoutInfo.visibleItemsInfo.maxByOrNull { it.index }?.index ?: 0
+                (last + 1).coerceIn(1, total)
+            }
+        }
+    }
+    val fraction = if (total == 0) 0f else current / total.toFloat()
     Column(
         Modifier
             .fillMaxSize()
@@ -1012,14 +1040,41 @@ private fun ReaderScreen(
             TextButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
             }
-            Text(title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                title,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (total > 0) {
+                Text(
+                    "$current/$total",
+                    color = Subtle,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(ColorLine)) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .background(Accent),
+            )
         }
         if (state.reading && state.readPages.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = true,
+            ) {
                 lazyItems(state.readPages, key = { it.file }) { page ->
                     CoverImage(
                         id = albumId,
