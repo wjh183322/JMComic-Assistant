@@ -129,7 +129,36 @@ object JmApi {
             works = asList(album.opt("works")),
             actors = asList(album.opt("actors")),
             tags = asList(album.opt("tags")),
+            chapters = parseSeries(album),
         )
+    }
+
+    fun chapterPages(chapterId: String): List<ExtraPage> {
+        ensureSession()
+        val chapter = apiGet("/chapter?id=$chapterId")
+        val images = chapter.optJSONArray("images")
+        return (0 until (images?.length() ?: 0)).mapNotNull { i ->
+            images?.optString(i)?.takeIf { s -> s.isNotBlank() }?.let { ExtraPage(chapterId, it) }
+        }
+    }
+
+    private fun parseSeries(album: JSONObject): List<Chapter> {
+        val series = album.opt("series") ?: return emptyList()
+        val objs = mutableListOf<JSONObject>()
+        when (series) {
+            is JSONArray -> {
+                for (i in 0 until series.length()) series.optJSONObject(i)?.let { objs += it }
+            }
+            is JSONObject -> {
+                val keys = series.keys().asSequence().toList().sortedBy { it.toIntOrNull() ?: Int.MAX_VALUE }
+                for (k in keys) series.optJSONObject(k)?.let { objs += it }
+            }
+        }
+        return objs.mapNotNull { o ->
+            val cid = o.optString("id")
+            if (cid.isBlank()) null
+            else Chapter(cid, o.optString("name"), o.optString("sort"))
+        }
     }
 
     private fun asList(value: Any?): List<String> = when (value) {

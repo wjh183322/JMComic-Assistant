@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.jinman.chahao.data.Blacklisted
 import com.jinman.chahao.data.BlacklistStore
 import com.jinman.chahao.data.Comic
+import com.jinman.chahao.data.ExtraPage
 import com.jinman.chahao.data.ExtractedId
 import com.jinman.chahao.data.FavoriteComic
 import com.jinman.chahao.data.FavoritesStore
@@ -35,12 +36,20 @@ data class UiState(
     val selected: Set<String> = emptySet(),
     val toast: String? = null,
     val blacklist: Map<String, Blacklisted> = emptyMap(),
+    val readPages: List<ExtraPage> = emptyList(),
+    val reading: Boolean = false,
 )
 
 sealed class SearchNav {
     data class Detail(val id: String) : SearchNav()
     data object Picker : SearchNav()
     data class Fail(val message: String) : SearchNav()
+}
+
+sealed class ReadNav {
+    data class Chapters(val albumId: String) : ReadNav()
+    data class Reader(val albumId: String, val chapterId: String) : ReadNav()
+    data class Fail(val message: String) : ReadNav()
 }
 
 class ScoutViewModel(app: Application) : AndroidViewModel(app) {
@@ -267,6 +276,36 @@ class ScoutViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (_: Exception) {
                 _state.update { it.copy(toast = "无法读取这个收藏文件") }
+            }
+        }
+    }
+
+    suspend fun startRead(comic: Comic): ReadNav {
+        if (!comic.found) return ReadNav.Fail("没有这部")
+        var chapters = comic.chapters
+        if (chapters.isEmpty()) {
+            val fresh = withContext(Dispatchers.IO) { JmApi.lookup(comic.id) }
+            if (fresh.found) {
+                _state.update { it.copy(cache = it.cache + (fresh.id to fresh)) }
+                chapters = fresh.chapters
+            }
+        }
+        return if (chapters.isEmpty()) ReadNav.Reader(comic.id, comic.id)
+        else ReadNav.Chapters(comic.id)
+    }
+
+    fun loadChapterPages(chapterId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(reading = true, readPages = emptyList()) }
+            val pages = withContext(Dispatchers.IO) {
+                runCatching { JmApi.chapterPages(chapterId) }.getOrDefault(emptyList())
+            }
+            _state.update {
+                it.copy(
+                    reading = false,
+                    readPages = pages,
+                    toast = if (pages.isEmpty()) "这一话没有图片" else it.toast,
+                )
             }
         }
     }

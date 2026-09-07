@@ -4,7 +4,9 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +32,7 @@ fun CoverImage(
     file: String? = null,
     modifier: Modifier = Modifier,
     forceFit: Boolean = false,
+    fillWidth: Boolean = false,
 ) {
     var failed by remember(id, photoId, file) { mutableStateOf(false) }
     var bmp by remember(id, photoId, file) { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -78,11 +81,22 @@ fun CoverImage(
             Text(if (failed) "无封面" else "…", color = Subtle, fontSize = 11.sp)
         }
     } else {
+        val bitmap = bmp!!
+        val imageMod = if (fillWidth) {
+            val h = bitmap.height.coerceAtLeast(1)
+            modifier.fillMaxWidth().aspectRatio(bitmap.width.toFloat() / h.toFloat())
+        } else {
+            modifier.fillMaxSize()
+        }
         Image(
-            bitmap = bmp!!.asImageBitmap(),
+            bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
-            modifier = modifier.fillMaxSize(),
-            contentScale = if (forceFit || photoId != null) ContentScale.Fit else ContentScale.Crop,
+            modifier = imageMod,
+            contentScale = when {
+                fillWidth -> ContentScale.FillWidth
+                forceFit || photoId != null -> ContentScale.Fit
+                else -> ContentScale.Crop
+            },
         )
     }
 }

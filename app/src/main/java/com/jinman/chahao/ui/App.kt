@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.lazy.itemsIndexed as lazyListItems
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -94,10 +96,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.jinman.chahao.ReadNav
 import com.jinman.chahao.ScoutViewModel
 import com.jinman.chahao.SearchNav
 import com.jinman.chahao.UiState
 import com.jinman.chahao.data.Comic
+import com.jinman.chahao.data.chapterLabel
 import com.jinman.chahao.data.methodLabel
 import kotlinx.coroutines.launch
 
@@ -204,7 +208,21 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                     if (comic == null) {
                         LaunchedEffect(id) { handle(vm.searchOne(id)) }
                     } else {
-                        DetailScreen(comic, state, vm) { nav.popBackStack() }
+                        DetailScreen(
+                            comic = comic,
+                            state = state,
+                            vm = vm,
+                            onBack = { nav.popBackStack() },
+                            onStartRead = {
+                                scope.launch {
+                                    when (val result = vm.startRead(comic)) {
+                                        is ReadNav.Chapters -> nav.navigate("chapters/${result.albumId}")
+                                        is ReadNav.Reader -> nav.navigate("read/${result.albumId}/${result.chapterId}")
+                                        is ReadNav.Fail -> snack.showSnackbar(result.message)
+                                    }
+                                }
+                            },
+                        )
                     }
                 }
                 composable("favorites") { FavoritesScreen(state, vm, nav) }
@@ -213,6 +231,20 @@ fun App(vm: ScoutViewModel, clipboardTick: Int) {
                     BlacklistScreen(state, nav) { id ->
                         scope.launch { handle(vm.searchOne(id)) }
                     }
+                }
+                composable("chapters/{id}") { entry ->
+                    val id = entry.arguments?.getString("id").orEmpty()
+                    val comic = state.cache[id] ?: state.favorites[id]?.comic
+                    if (comic == null) {
+                        LaunchedEffect(id) { handle(vm.searchOne(id)) }
+                    } else {
+                        ChapterListScreen(comic, nav)
+                    }
+                }
+                composable("read/{albumId}/{chapterId}") { entry ->
+                    val albumId = entry.arguments?.getString("albumId").orEmpty()
+                    val chapterId = entry.arguments?.getString("chapterId").orEmpty()
+                    ReaderScreen(state, vm, albumId, chapterId) { nav.popBackStack() }
                 }
             }
             if (state.pendingClipboard != null) {
@@ -480,7 +512,13 @@ private fun MetaBlock(label: String, values: List<String>) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DetailScreen(comic: Comic, state: UiState, vm: ScoutViewModel, onBack: () -> Unit) {
+private fun DetailScreen(
+    comic: Comic,
+    state: UiState,
+    vm: ScoutViewModel,
+    onBack: () -> Unit,
+    onStartRead: () -> Unit,
+) {
     var viewer by remember { mutableStateOf<Int?>(null) }
     val favorited = state.favorites.containsKey(comic.id)
     val blocked = state.blacklist.containsKey(comic.id)
@@ -538,6 +576,19 @@ private fun DetailScreen(comic: Comic, state: UiState, vm: ScoutViewModel, onBac
                 Text(comic.description, color = Muted, modifier = Modifier.padding(top = 4.dp))
             }
             Spacer(Modifier.height(16.dp))
+            if (comic.found) {
+                Button(
+                    onClick = onStartRead,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = AccentFg),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(Icons.Default.MenuBook, null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("开始阅读")
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             Button(
                 onClick = { vm.toggleFavorite(comic) },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -885,6 +936,98 @@ private fun BlacklistScreen(
                     if (index < list.lastIndex) {
                         HorizontalDivider(color = ColorLine, thickness = 0.5.dp)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChapterListScreen(comic: Comic, nav: NavHostController) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { nav.popBackStack() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            Text("选择话数", fontWeight = FontWeight.Medium, fontSize = 18.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Surface),
+        ) {
+            lazyListItems(comic.chapters, key = { it.id }) { index, ch ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { nav.navigate("read/${comic.id}/${ch.id}") }
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(chapterLabel(index, ch), modifier = Modifier.weight(1f), fontSize = 15.sp)
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Subtle,
+                    )
+                }
+                if (index < comic.chapters.lastIndex) {
+                    HorizontalDivider(color = ColorLine, thickness = 0.5.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReaderScreen(
+    state: UiState,
+    vm: ScoutViewModel,
+    albumId: String,
+    chapterId: String,
+    onBack: () -> Unit,
+) {
+    LaunchedEffect(chapterId) { vm.loadChapterPages(chapterId) }
+    val comic = state.cache[albumId] ?: state.favorites[albumId]?.comic
+    val title = comic?.chapters?.indexOfFirst { it.id == chapterId }?.takeIf { it >= 0 }?.let { i ->
+        chapterLabel(i, comic.chapters[i])
+    } ?: "阅读"
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Paper)
+            .statusBarsPadding(),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            }
+            Text(title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (state.reading && state.readPages.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Accent)
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize()) {
+                lazyItems(state.readPages, key = { it.file }) { page ->
+                    CoverImage(
+                        id = albumId,
+                        photoId = page.photoId,
+                        file = page.file,
+                        modifier = Modifier.fillMaxWidth(),
+                        fillWidth = true,
+                    )
                 }
             }
         }

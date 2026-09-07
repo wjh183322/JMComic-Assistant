@@ -87,6 +87,11 @@ class FavoritesStore(context: Context) {
         o.put("works", JSONArray(c.works))
         o.put("actors", JSONArray(c.actors))
         o.put("tags", JSONArray(c.tags))
+        val chapters = JSONArray()
+        c.chapters.forEach { ch ->
+            chapters.put(JSONObject().put("id", ch.id).put("name", ch.name).put("sort", ch.sort))
+        }
+        o.put("chapters", chapters)
         val pages = JSONArray()
         c.extraPages.forEach { p ->
             pages.put(JSONObject().put("photoId", p.photoId).put("file", p.file))
@@ -116,6 +121,14 @@ class FavoritesStore(context: Context) {
             works = strList(o.optJSONArray("works")),
             actors = strList(o.optJSONArray("actors")),
             tags = strList(o.optJSONArray("tags")),
+            chapters = run {
+                val arr = o.optJSONArray("chapters")
+                (0 until (arr?.length() ?: 0)).mapNotNull { i ->
+                    val c = arr!!.optJSONObject(i) ?: return@mapNotNull null
+                    val cid = c.optString("id")
+                    if (cid.isBlank()) null else Chapter(cid, c.optString("name"), c.optString("sort"))
+                }
+            },
         )
     }
 
