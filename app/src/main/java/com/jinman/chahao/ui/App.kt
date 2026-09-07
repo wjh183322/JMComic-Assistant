@@ -838,23 +838,10 @@ private fun BlacklistScreen(
                         Modifier
                             .fillMaxWidth()
                             .clickable { onOpen(item.id) }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            Modifier
-                                .width(48.dp)
-                                .height(64.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Surface2),
-                        ) {
-                            CoverImage(item.id, modifier = Modifier.fillMaxSize())
-                        }
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .padding(horizontal = 12.dp),
-                        ) {
+                        Column(Modifier.weight(1f)) {
                             Text(
                                 item.name.ifBlank { "JM${item.id}" },
                                 fontSize = 15.sp,
