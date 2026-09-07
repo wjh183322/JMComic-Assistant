@@ -828,6 +828,10 @@ private fun FavoritesScreen(state: UiState, vm: ScoutViewModel, nav: NavHostCont
 
 @Composable
 private fun PendingBar(modifier: Modifier, onSearch: () -> Unit, onDismiss: () -> Unit) {
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(2000)
+        onDismiss()
+    }
     Row(
         modifier
             .navigationBarsPadding()
